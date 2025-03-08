@@ -1,6 +1,8 @@
-import { useRef, useState } from "react"
+import { useState } from "react"
 import { diffChars } from 'diff'
 import dynamic from 'next/dynamic'
+import { Editor, EditorContent, EditorProvider, useEditor } from "@tiptap/react"
+import StarterKit from "@tiptap/starter-kit"
 
 interface Version {
   text: string
@@ -10,107 +12,103 @@ interface Version {
 export default function App() {
   return (
     <div>
-      <Editor/>
+      <Sketchpad/>
     </div>
   )
 }
 
-export const Editor = dynamic(() => Promise.resolve(EditorSSR), {
+export const Sketchpad = dynamic(() => Promise.resolve(SketchpadSSR), {
   ssr: false
 })
 
-export function EditorSSR() {
+export function SketchpadSSR() {
   type OperationType = 'insert' | 'delete' | 'none' | 'mixture'
 
   const defaultText = ''
-
-  const [text, setText] = useState(defaultText)
 
   const [previousText, setPreviousText] = useState(defaultText)
   const [lastOperationType, setLastOperationType] = useState<OperationType>('none')
   
   const [versionHistory, setVersionHistory] = useState<Version[]>([{ text: defaultText, timestamp: new Date() }])
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  
+  const editor = useEditor({
+    immediatelyRender: false,
 
-  const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newText = event.target.value
-    setText(newText)
-
-    const diff = diffChars(previousText, newText)
-    
-    let operationType: OperationType = 'none'
-    
-    let insertions = 0
-    let deletions = 0
-
-    diff.forEach(part => {
-      if (part.added) {
-        if (part.count) {
-          insertions += part.count
-        }
-      } else if (part.removed) {
-        if (part.count) {
-          deletions += part.count
-        }
-      }
-    })
-
-    if (insertions > 0 && deletions === 0) {
-      operationType = 'insert'
-    } else if (deletions > 0 && insertions === 0) {
-      operationType = 'delete'
-    } else if (insertions > 0 && deletions > 0) {
-      operationType = 'mixture'
-    } else {
-      operationType = 'none'
-    }
-
-    setPreviousText(newText)
-
-    setVersionHistory(prevHistory => {
-      const currentVersion = { text: newText, timestamp: new Date() }
-
-      if (prevHistory.length === 0) {
-        return [currentVersion] // Initial case
-      }
-
-      const historyCopy = [...prevHistory]
+    extensions: [
+      StarterKit,
+    ],
+  
+    onUpdate({ editor }) {
+      const newText = editor.getText()
+  
+      const diff = diffChars(previousText, newText)
       
+      let operationType: OperationType = 'none'
       
-
-      if (operationType === 'none') {
-        return historyCopy
-      }
-
-      const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000)
-
-      if (
-        lastOperationType === operationType &&
-        operationType !== 'mixture' &&
-        new Date(historyCopy[0].timestamp) > threeMinutesAgo
-      ) {
-        // Continuous same type of edit (insert or delete), replace last version
-        historyCopy[0] = currentVersion;
-        return historyCopy;
+      let insertions = 0
+      let deletions = 0  
+  
+      diff.forEach(part => {
+        if (part.added) {
+          if (part.count) {
+            insertions += part.count
+          }
+        } else if (part.removed) {
+          if (part.count) {
+            deletions += part.count
+          }
+        }
+      })
+  
+      if (insertions > 0 && deletions === 0) {
+        operationType = 'insert'
+      } else if (deletions > 0 && insertions === 0) {
+        operationType = 'delete'
+      } else if (insertions > 0 && deletions > 0) {
+        operationType = 'mixture'
       } else {
-        // Switch in operation type or first operation or switch operation, add new version
-        return [currentVersion, ...historyCopy];
+        operationType = 'none'
       }
-    })
-
-    setLastOperationType(operationType)
-  }
+  
+      setPreviousText(newText)
+  
+      setVersionHistory(prevHistory => {
+        const currentVersion = { text: newText, timestamp: new Date() }
+  
+        if (prevHistory.length === 0) {
+          return [currentVersion] // Initial case
+        }
+  
+        const historyCopy = [...prevHistory]
+        
+        if (operationType === 'none') {
+          return historyCopy
+        }
+  
+        const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000)
+  
+        if (
+          lastOperationType === operationType &&
+          operationType !== 'mixture' &&
+          new Date(historyCopy[0].timestamp) > threeMinutesAgo
+        ) {
+          // Continuous same type of edit (insert or delete), replace last version
+          historyCopy[0] = currentVersion;
+          return historyCopy;
+        } else {
+          // Switch in operation type or first operation or switch operation, add new version
+          return [currentVersion, ...historyCopy];
+        }
+      })
+  
+      setLastOperationType(operationType)
+    },
+  })
 
   return (
     <div className="container">
       <div className="editor-container">
-        <textarea
-          ref={textareaRef}
-          className="editor"
-          value={text}
-          onChange={handleTextChange}
-          placeholder="Start typing here..."
-        />
+        <EditorContent editor={editor} />
       </div>
 
       <div className="history-container">
