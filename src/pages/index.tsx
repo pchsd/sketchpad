@@ -16,13 +16,8 @@ export default function Home() {
   const [previousText, setPreviousText] = useState(defaultText)
   const [lastOperationType, setLastOperationType] = useState<OperationType>('none')
   
-  const [versionHistory, setVersionHistory] = useState<Version[]>([])
+  const [versionHistory, setVersionHistory] = useState<Version[]>([{ text: defaultText, timestamp: new Date() }])
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-
-  useEffect(() => {
-    // Initialize version history with the initial empty text
-    setVersionHistory([{ text: text, timestamp: new Date() }])
-  }, [])
 
   const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = event.target.value
@@ -34,7 +29,6 @@ export default function Home() {
     
     let insertions = 0
     let deletions = 0
-    let common = 0
 
     diff.forEach(part => {
       if (part.added) {
@@ -44,10 +38,6 @@ export default function Home() {
       } else if (part.removed) {
         if (part.count) {
           deletions += part.count
-        }
-      } else {
-        if (part.count) {
-          common += part.count
         }
       }
     })
