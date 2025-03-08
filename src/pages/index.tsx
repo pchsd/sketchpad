@@ -1,12 +1,25 @@
 import { useRef, useState } from "react"
 import { diffChars } from 'diff'
+import dynamic from 'next/dynamic'
 
 interface Version {
   text: string
   timestamp: Date
 }
 
-export default function Home() {
+export default function App() {
+  return (
+    <div>
+      <Editor/>
+    </div>
+  )
+}
+
+export const Editor = dynamic(() => Promise.resolve(EditorSSR), {
+  ssr: false
+})
+
+export function EditorSSR() {
   type OperationType = 'insert' | 'delete' | 'none' | 'mixture'
 
   const defaultText = ''
