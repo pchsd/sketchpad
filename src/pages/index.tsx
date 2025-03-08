@@ -1,4 +1,3 @@
-import { Geist, Geist_Mono } from "next/font/google"
 import { useEffect, useRef, useState } from "react"
 import { diffChars } from 'diff'
 
