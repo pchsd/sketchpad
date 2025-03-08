@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { diffChars } from 'diff'
 import dynamic from 'next/dynamic'
-import { Editor, EditorContent, EditorProvider, useEditor } from "@tiptap/react"
+import { EditorContent, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 
 interface Version {
