@@ -116,7 +116,13 @@ function SketchpadSSR() {
     }
   }, [])
 
-  const handleChange = useCallback((value: string) => {
+  useEffect(() => {
+    if (versionHistory.length > 0) {
+      saveVersionHistoryToIndexedDB(versionHistory)
+    }
+  }, [versionHistory])
+
+  const handleChange = (value: string) => {
     const currentVersion = { text: value, timestamp: new Date() }
 
     if (versionHistory.length === 0) {
@@ -185,13 +191,7 @@ function SketchpadSSR() {
     setVersionHistory(newVersionHistory)
     
     setLastOperationType(operationType)
-  }, [])
-
-  useEffect(() => {
-    if (versionHistory.length > 0) {
-      saveVersionHistoryToIndexedDB(versionHistory)
-    }
-  }, [versionHistory])
+  }
   
   if (isInitializingIndexDB) {
     return <div>Loading...</div>
