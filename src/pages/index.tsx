@@ -3,6 +3,7 @@ import { diffChars } from 'diff'
 import dynamic from 'next/dynamic'
 import { EditorContent, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
+import Text from "@tiptap/extension-text"
 
 interface Version {
   text: string
@@ -36,7 +37,14 @@ export function SketchpadSSR() {
 
     extensions: [
       StarterKit,
+      Text,
     ],
+
+    editorProps: {
+      attributes: {
+        class: 'px-6 py-9 min-h-64 focus:outline-none',
+      },
+    },
   
     onUpdate({ editor }) {
       const newText = editor.getText()
