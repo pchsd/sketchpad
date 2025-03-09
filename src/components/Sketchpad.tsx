@@ -1,10 +1,8 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { diffChars } from 'diff'
 import dynamic from 'next/dynamic'
-import { EditorContent, useEditor } from "@tiptap/react"
 import Version from "@/types/Version"
-import StarterKit from "@tiptap/starter-kit"
-import Text from "@tiptap/extension-text"
+import CodeMirror, { ViewUpdate } from '@uiw/react-codemirror'
 
 export const Sketchpad = dynamic(() => Promise.resolve(SketchpadSSR), {
   ssr: false
@@ -23,7 +21,8 @@ function SketchpadSSR() {
   const [db, setDb] = useState<IDBDatabase | null>(null)
   const [initialEditorText, setInitialEditorText] = useState<string>('')
 
-  const [isLoading, setIsLoading] = useState(true)
+  const [isInitializingIndexDB, setIsInitializingIndexDB] = useState(true)
+  const [isInitializingEditor, setIsInitializingEditor] = useState(true)
 
 
   const initIndexedDB = () => {
@@ -65,7 +64,7 @@ function SketchpadSSR() {
       console.error("Error loading version history from IndexedDB: ", event)
     }
 
-    setIsLoading(false)
+    setIsInitializingIndexDB(false)
   }
 
   const saveVersionHistoryToIndexedDB = (historyToSave: Version[]) => {
@@ -99,12 +98,12 @@ function SketchpadSSR() {
           setInitialEditorText(storedHistory[0].text)
         }
 
-        setIsLoading(false)
+        setIsInitializingIndexDB(false)
       }
 
       getRequest.onerror = (event) => {
         console.error("Error loading version history from IndexedDB: ", event)
-        setIsLoading(false)
+        setIsInitializingIndexDB(false)
       }
     }
 
@@ -121,111 +120,94 @@ function SketchpadSSR() {
     }
   }, [])
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Text,
-    ],
-  
-    editorProps: {
-      attributes: {
-        class: 'px-6 py-9 min-h-64 focus:outline-none',
-      },
-    },
-  
-    onUpdate({ editor }) {
-      const newText = editor.getText()
-      const currentVersion = { text: newText, timestamp: new Date() }
-  
-      if (versionHistory.length === 0) {
-        setVersionHistory([currentVersion])
-        return
-      }
-  
-      const diff = diffChars(versionHistory[0].text, newText)
-  
-      let operationType: OperationType = 'none'
-  
-      let insertions = 0
-      let deletions = 0
-  
-      diff.forEach(part => {
-        if (part.added) {
-          if (part.count) {
-            insertions += part.count
-          }
-        } else if (part.removed) {
-          if (part.count) {
-            deletions += part.count
-          }
-        }
-      })
-  
-      if (insertions > 0 && deletions === 0) {
-        operationType = 'insert'
-      } else if (deletions > 0 && insertions === 0) {
-        operationType = 'delete'
-      } else if (insertions > 0 && deletions > 0) {
-        operationType = 'mixture'
-      } else {
-        operationType = 'none'
-      }
-  
-      const buildNewVersionHistory = (): Version[] => {
-        if (versionHistory.length === 0) {
-          return [currentVersion] // Initial case
-        }
-  
-        const historyCopy = [...versionHistory]
-  
-        if (operationType === 'none') {
-          return historyCopy
-        }
-  
-        const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000)
-  
-        if (
-          lastOperationType === operationType &&
-          operationType !== 'mixture' &&
-          new Date(historyCopy[0].timestamp) > threeMinutesAgo
-        ) {
-          // Replace last version when continuous same type of edit (insert or delete)
-          historyCopy[0] = currentVersion
-          return historyCopy
-        } else {
-          // Add new version when switch in operation type or first operation
-          return [currentVersion, ...historyCopy]
-        }
-      }
-  
-      const newVersionHistory = buildNewVersionHistory()
-      
-      setVersionHistory(newVersionHistory)
-      
-      setLastOperationType(operationType)
-    },
-  })
+  const handleChange = useCallback((value: string, viewUpdate: ViewUpdate) => {
+    const currentVersion = { text: value, timestamp: new Date() }
 
-  useEffect(() => {
-    if (editor && initialEditorText) {
-      editor.commands.setContent(initialEditorText)
+    if (versionHistory.length === 0) {
+      setVersionHistory([currentVersion])
+      return
     }
-  }, [editor, initialEditorText])
+
+    const diff = diffChars(versionHistory[0].text, value)
+
+    let operationType: OperationType = 'none'
+
+    let insertions = 0
+    let deletions = 0
+
+    diff.forEach(part => {
+      if (part.added) {
+        if (part.count) {
+          insertions += part.count
+        }
+      } else if (part.removed) {
+        if (part.count) {
+          deletions += part.count
+        }
+      }
+    })
+
+    if (insertions > 0 && deletions === 0) {
+      operationType = 'insert'
+    } else if (deletions > 0 && insertions === 0) {
+      operationType = 'delete'
+    } else if (insertions > 0 && deletions > 0) {
+      operationType = 'mixture'
+    } else {
+      operationType = 'none'
+    }
+
+    const buildNewVersionHistory = (): Version[] => {
+      if (versionHistory.length === 0) {
+        return [currentVersion] // Initial case
+      }
+
+      const historyCopy = [...versionHistory]
+
+      if (operationType === 'none') {
+        return historyCopy
+      }
+
+      const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000)
+
+      if (
+        lastOperationType === operationType &&
+        operationType !== 'mixture' &&
+        new Date(historyCopy[0].timestamp) > threeMinutesAgo
+      ) {
+        // Replace last version when continuous same type of edit (insert or delete)
+        historyCopy[0] = currentVersion
+        return historyCopy
+      } else {
+        // Add new version when switch in operation type or first operation
+        return [currentVersion, ...historyCopy]
+      }
+    }
+
+    const newVersionHistory = buildNewVersionHistory()
+    
+    setVersionHistory(newVersionHistory)
+    
+    setLastOperationType(operationType)
+  }, [])
 
   useEffect(() => {
     if (versionHistory.length > 0) {
       saveVersionHistoryToIndexedDB(versionHistory)
     }
   }, [versionHistory])
+
+  console.log(`isInitializingIndexDB: ${isInitializingIndexDB}`)
+  console.log(`isInitializingEditor: ${isInitializingEditor}`)
   
-  if (isLoading) {
+  if (isInitializingIndexDB) {
     return <div>Loading...</div>
   }
 
   return (
     <div className="container">
       <div className="editor-container">
-        <EditorContent editor={editor} />
+        <CodeMirror height="500px" value={initialEditorText} onChange={handleChange} />
       </div>
 
       <div className="history-container">
