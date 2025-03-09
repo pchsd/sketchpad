@@ -199,7 +199,7 @@ function SketchpadSSR() {
 
   return (
     <div className="flex flex-col items-center">
-      <div className='max-w-2xl'>
+      <div className='w-256 max-w-screen'>
         <CodeMirror minHeight="500px" value={initialEditorText} extensions={[EditorView.lineWrapping]} onChange={handleChange} />
 
         <div className="flex flex-col">
