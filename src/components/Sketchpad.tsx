@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { diffChars } from 'diff'
 import dynamic from 'next/dynamic'
 import Version from "@/types/Version"
-import CodeMirror, { ViewUpdate } from '@uiw/react-codemirror'
+import CodeMirror from '@uiw/react-codemirror'
 
 export const Sketchpad = dynamic(() => Promise.resolve(SketchpadSSR), {
   ssr: false
@@ -22,7 +22,6 @@ function SketchpadSSR() {
   const [initialEditorText, setInitialEditorText] = useState<string>('')
 
   const [isInitializingIndexDB, setIsInitializingIndexDB] = useState(true)
-  const [isInitializingEditor, setIsInitializingEditor] = useState(true)
 
 
   const initIndexedDB = () => {
@@ -68,9 +67,6 @@ function SketchpadSSR() {
   }
 
   const saveVersionHistoryToIndexedDB = (historyToSave: Version[]) => {
-    console.log('Called: saveVersionHistoryToIndexedDB()')
-    console.log(`Called: ${JSON.stringify(historyToSave)}`)
-
     if (!db) return
 
     const transaction = db.transaction(objectStoreName, 'readwrite')
@@ -120,7 +116,7 @@ function SketchpadSSR() {
     }
   }, [])
 
-  const handleChange = useCallback((value: string, viewUpdate: ViewUpdate) => {
+  const handleChange = useCallback((value: string) => {
     const currentVersion = { text: value, timestamp: new Date() }
 
     if (versionHistory.length === 0) {
@@ -196,9 +192,6 @@ function SketchpadSSR() {
       saveVersionHistoryToIndexedDB(versionHistory)
     }
   }, [versionHistory])
-
-  console.log(`isInitializingIndexDB: ${isInitializingIndexDB}`)
-  console.log(`isInitializingEditor: ${isInitializingEditor}`)
   
   if (isInitializingIndexDB) {
     return <div>Loading...</div>
