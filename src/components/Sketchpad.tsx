@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { diffChars } from 'diff'
 import dynamic from 'next/dynamic'
 import Version from "@/types/Version"
-import CodeMirror from '@uiw/react-codemirror'
+import CodeMirror, { EditorView } from '@uiw/react-codemirror'
 
 export const Sketchpad = dynamic(() => Promise.resolve(SketchpadSSR), {
   ssr: false
@@ -198,41 +198,42 @@ function SketchpadSSR() {
   }
 
   return (
-    <div className="container">
-      <div className="editor-container">
-        <CodeMirror height="500px" value={initialEditorText} onChange={handleChange} />
-      </div>
+    <div className="flex flex-col items-center">
+      <div className='max-w-2xl'>
+        <CodeMirror minHeight="500px" value={initialEditorText} extensions={[EditorView.lineWrapping]} onChange={handleChange} />
 
-      <div className="history-container">
-        <h2>Version History</h2>
-        {versionHistory.length > 0 ? (
-          <ul className="history-list">
-            {versionHistory.map((version, index) => (
-              <li key={index} className="history-item">
-                <div>
-                  {version.text.length > 0 ? (
-                    <pre className="history-text">{version.text}</pre>
-                  ) : (
-                    <pre className="text-gray-600">Empty</pre>
-                  )}
+        <div className="flex flex-col">
+          <h2>Version History</h2>
 
-                  <pre className="history-text">
-                    {version.timestamp.toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                      second: "2-digit",
-                      hour12: true,
-                    })}</pre>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No versions yet.</p>
-        )}
+          {versionHistory.length > 0 ? (
+            <ul className="history-list">
+              {versionHistory.map((version, index) => (
+                <li key={index} className="history-item">
+                  <div>
+                    {version.text.length > 0 ? (
+                      <pre className="whitespace-pre-wrap break-words">{version.text}</pre>
+                    ) : (
+                      <div className="text-gray-600">Empty</div>
+                    )}
+
+                    <div className="history-text">
+                      {version.timestamp.toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        hour12: true,
+                      })}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No versions yet.</p>
+          )}
+        </div>
       </div>
     </div>
   )
