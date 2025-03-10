@@ -12,7 +12,6 @@ type OperationType = 'insert' | 'delete' | 'none' | 'mixture'
 
 const dbName = 'sketchpadDB'
 const objectStoreName = 'versionHistoryStore'
-const versionHistoryKey = 'versionHistoryData'
 
 function SketchpadSSR() {
   const [lastOperationType, setLastOperationType] = useState<OperationType>('none')
@@ -33,77 +32,97 @@ function SketchpadSSR() {
 
     request.onsuccess = () => {
       setDb(request.result)
-      loadVersionHistoryFromIndexedDB(request.result)
     }
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBRequest).result as IDBDatabase
 
       if (!db.objectStoreNames.contains(objectStoreName)) {
-        db.createObjectStore(objectStoreName)
+        db.createObjectStore(objectStoreName, { autoIncrement: true })
       }
     }
   }
 
-  const loadVersionHistoryFromIndexedDB = (currentDb: IDBDatabase) => {
-    if (!currentDb) return
-
-    const transaction = currentDb.transaction(objectStoreName, 'readonly')
-    const objectStore = transaction.objectStore(objectStoreName)
-    const getRequest = objectStore.get(versionHistoryKey)
-
-    getRequest.onsuccess = (event) => {
-      const storedHistory = (event.target as IDBRequest).result as Version[]
-      if (storedHistory && storedHistory.length > 0) {
-        setVersionHistory(storedHistory)
-      }
+  const addVersionToIndexedDB = (version: Version) => {
+    if (!db) {
+      console.error("db is null")
+      return
     }
-
-    getRequest.onerror = (event) => {
-      console.error("Error loading version history from IndexedDB: ", event)
-    }
-
-    setIsInitializingIndexDB(false)
-  }
-
-  const saveVersionHistoryToIndexedDB = (historyToSave: Version[]) => {
-    if (!db) return
 
     const transaction = db.transaction(objectStoreName, 'readwrite')
     const objectStore = transaction.objectStore(objectStoreName)
-    const putRequest = objectStore.put(historyToSave, versionHistoryKey)
+    const putRequest = objectStore.add(version)
 
     putRequest.onerror = (event) => {
       console.error("Error saving version history to IndexedDB: ", event)
     }
   }
 
-  useEffect(() => {
-    if (!db) return
-
-    const loadVersionHistoryFromIndexedDB = () => {
-      const transaction = db.transaction(objectStoreName, 'readonly')
-      const objectStore = transaction.objectStore(objectStoreName)
-      const getRequest = objectStore.get(versionHistoryKey)
-
-      getRequest.onsuccess = (event) => {
-        const storedHistory = (event.target as IDBRequest).result as Version[]
-        
-        if (storedHistory && storedHistory.length > 0) {
-          setVersionHistory(storedHistory)
-          setInitialEditorText(storedHistory[storedHistory.length - 1].text)
-        }
-
-        setIsInitializingIndexDB(false)
-      }
-
-      getRequest.onerror = (event) => {
-        console.error("Error loading version history from IndexedDB: ", event)
-        setIsInitializingIndexDB(false)
-      }
+  const updateVersionInIndexedDB = (version: Version, key: number) => {
+    if (!db) {
+      console.error("db is null")
+      return
     }
 
-    loadVersionHistoryFromIndexedDB()
+    const transaction = db.transaction(objectStoreName, 'readwrite')
+    const objectStore = transaction.objectStore(objectStoreName)
+    const putRequest = objectStore.put(version, key)
+
+    putRequest.onerror = (event) => {
+      console.error("Error saving version history to IndexedDB: ", event)
+    }
+  }
+
+  const getRowCountFromIndexedDB = (callback: (rowCount: number) => void) => {
+    if (!db) return
+
+    const transaction = db.transaction(objectStoreName, 'readonly')
+    const objectStore = transaction.objectStore(objectStoreName)
+    const getRowCount = objectStore.count()
+
+    getRowCount.onsuccess = (event) => {
+      const rowCount = (event.target as IDBRequest).result as number
+      callback(rowCount)
+    }
+
+    getRowCount.onerror = (event) => {
+      console.error("Error loading version history from IndexedDB: ", event)
+    }
+  }
+  
+  const getLastVersionFromIndexedDB = (callback: (version: Version) => void) => {
+    if (!db) return
+
+    const transaction = db.transaction(objectStoreName, 'readonly')
+    const objectStore = transaction.objectStore(objectStoreName)
+    
+    getRowCountFromIndexedDB((rowCount) => {      
+      if (rowCount > 0) {
+        const getLastRow = objectStore.get(rowCount)
+
+        getLastRow.onsuccess = (event) => {
+          const lastRow = (event.target as IDBRequest).result as Version
+          callback(lastRow)
+        }
+  
+        getLastRow.onerror = (event) => {
+          console.error("Error loading version history from IndexedDB: ", event)
+        }
+      } else {
+        setIsInitializingIndexDB(false)
+      }
+    })
+  }
+
+  useEffect(() => {
+    getLastVersionFromIndexedDB((lastRow) => {         
+      if (lastRow) {
+        setVersionHistory([lastRow])
+        setInitialEditorText(lastRow.text)
+      }
+
+      setIsInitializingIndexDB(false)
+    })
   }, [db])
 
   useEffect(() => {
@@ -116,17 +135,12 @@ function SketchpadSSR() {
     }
   }, [])
 
-  useEffect(() => {
-    if (versionHistory.length > 0) {
-      saveVersionHistoryToIndexedDB(versionHistory)
-    }
-  }, [versionHistory])
-
   const handleChange = (value: string) => {
     const currentVersion = { text: value, timestamp: new Date() }
 
     if (versionHistory.length === 0) {
       setVersionHistory([currentVersion])
+      addVersionToIndexedDB(currentVersion)
       return
     }
 
@@ -160,10 +174,6 @@ function SketchpadSSR() {
     }
 
     const buildNewVersionHistory = (): Version[] => {
-      if (versionHistory.length === 0) {
-        return [currentVersion] // Initial case
-      }
-
       const historyCopy = [...versionHistory]
 
       if (operationType === 'none') {
@@ -179,9 +189,15 @@ function SketchpadSSR() {
       ) {
         // Replace last version when continuous same type of edit (insert or delete)
         historyCopy[historyCopy.length - 1] = currentVersion
+
+        getRowCountFromIndexedDB((rowCount) => {
+          updateVersionInIndexedDB(currentVersion, rowCount)
+        })
+
         return historyCopy
       } else {
         // Add new version when switch in operation type or first operation
+        addVersionToIndexedDB(currentVersion)
         return [...historyCopy, currentVersion]
       }
     }
@@ -203,7 +219,8 @@ function SketchpadSSR() {
         <CodeMirror minHeight="500px" value={initialEditorText} extensions={[EditorView.lineWrapping]} onChange={handleChange} />
 
         <div className="flex flex-col">
-          <h2>Version History</h2>
+          <p>Version History</p>
+          <p>${versionHistory.length} versions saved for this session</p>
 
           {versionHistory.length > 0 ? (
             <ul className="history-list">
