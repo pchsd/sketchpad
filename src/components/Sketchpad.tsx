@@ -93,10 +93,11 @@ function SketchpadSSR() {
   const getLastVersionFromIndexedDB = (callback: (version: Version) => void) => {
     if (!db) return
 
+    getRowCountFromIndexedDB((rowCount) => {
+      
     const transaction = db.transaction(objectStoreName, 'readonly')
     const objectStore = transaction.objectStore(objectStoreName)
     
-    getRowCountFromIndexedDB((rowCount) => {      
       if (rowCount > 0) {
         const getLastRow = objectStore.get(rowCount)
 
