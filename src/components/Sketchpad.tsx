@@ -91,7 +91,7 @@ function SketchpadSSR() {
         
         if (storedHistory && storedHistory.length > 0) {
           setVersionHistory(storedHistory)
-          setInitialEditorText(storedHistory[0].text)
+          setInitialEditorText(storedHistory[storedHistory.length - 1].text)
         }
 
         setIsInitializingIndexDB(false)
@@ -130,7 +130,7 @@ function SketchpadSSR() {
       return
     }
 
-    const diff = diffChars(versionHistory[0].text, value)
+    const diff = diffChars(versionHistory[versionHistory.length - 1].text, value)
 
     let operationType: OperationType = 'none'
 
@@ -175,14 +175,14 @@ function SketchpadSSR() {
       if (
         lastOperationType === operationType &&
         operationType !== 'mixture' &&
-        new Date(historyCopy[0].timestamp) > threeMinutesAgo
+        new Date(historyCopy[historyCopy.length - 1].timestamp) > threeMinutesAgo
       ) {
         // Replace last version when continuous same type of edit (insert or delete)
-        historyCopy[0] = currentVersion
+        historyCopy[historyCopy.length - 1] = currentVersion
         return historyCopy
       } else {
         // Add new version when switch in operation type or first operation
-        return [currentVersion, ...historyCopy]
+        return [...historyCopy, currentVersion]
       }
     }
 
