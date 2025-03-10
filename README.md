@@ -1,7 +1,8 @@
 Sketchpad is a web-based text editor that saves any edits you make to your browser's local storage, so you can view and restore any text you've entered in that text box at any time.
 
-[Try Sketchpad in your browser](https://sketchpad.pages.dev/): https://sketchpad.pages.dev/
-[View repo on GitHub](https://github.com/pchsd/sketchpad): https://github.com/pchsd/sketchpad
+Try Sketchpad in your browser: https://sketchpad.pages.dev/
+
+View repo on GitHub: https://github.com/pchsd/sketchpad
 
 ## Running the Development Server
 
