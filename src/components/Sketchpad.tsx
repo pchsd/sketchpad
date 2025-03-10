@@ -95,9 +95,9 @@ function SketchpadSSR() {
 
     getRowCountFromIndexedDB((rowCount) => {
       
-    const transaction = db.transaction(objectStoreName, 'readonly')
-    const objectStore = transaction.objectStore(objectStoreName)
-    
+      const transaction = db.transaction(objectStoreName, 'readonly')
+      const objectStore = transaction.objectStore(objectStoreName)
+
       if (rowCount > 0) {
         const getLastRow = objectStore.get(rowCount)
 
@@ -216,12 +216,12 @@ function SketchpadSSR() {
 
   return (
     <div className="flex flex-col items-center">
-      <div className='w-256 max-w-screen'>
+      <div className='w-136 max-w-screen'>
         <CodeMirror minHeight="500px" value={initialEditorText} extensions={[EditorView.lineWrapping]} onChange={handleChange} />
 
         <div className="flex flex-col">
           <p>Version History</p>
-          <p>${versionHistory.length} versions saved for this session</p>
+          <p>{versionHistory.length} versions saved for this session</p>
 
           {versionHistory.length > 0 ? (
             <ul className="history-list">
