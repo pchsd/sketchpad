@@ -15,13 +15,12 @@ const objectStoreName = 'versionHistoryStore'
 
 function SketchpadSSR() {
   const [lastOperationType, setLastOperationType] = useState<OperationType>('none')
-  const [versionHistory, setVersionHistory] = useState<Version[]>([])
   
+  const [count, setCount] = useState(0)
   const [db, setDb] = useState<IDBDatabase | null>(null)
   const [initialEditorText, setInitialEditorText] = useState<string>('')
 
   const [isInitializingIndexDB, setIsInitializingIndexDB] = useState(true)
-
 
   const initIndexedDB = () => {
     const request = indexedDB.open(dbName, 1)
@@ -90,15 +89,16 @@ function SketchpadSSR() {
     }
   }
   
-  const getLastVersionFromIndexedDB = (callback: (version: Version) => void) => {
+  const getLastVersionFromIndexedDB = (callback: (version?: Version) => void) => {
     if (!db) return
 
     getRowCountFromIndexedDB((rowCount) => {
-      
       const transaction = db.transaction(objectStoreName, 'readonly')
       const objectStore = transaction.objectStore(objectStoreName)
 
-      if (rowCount > 0) {
+      if (rowCount <= 0) {
+        callback()
+      } else {
         const getLastRow = objectStore.get(rowCount)
 
         getLastRow.onsuccess = (event) => {
@@ -107,19 +107,16 @@ function SketchpadSSR() {
         }
   
         getLastRow.onerror = (event) => {
-          console.error("Error loading version history from IndexedDB: ", event)
+          throw new Error(`Error loading version history from IndexedDB: ${JSON.stringify(event)}`)
         }
-      } else {
-        setIsInitializingIndexDB(false)
       }
     })
   }
 
   useEffect(() => {
-    getLastVersionFromIndexedDB((lastRow) => {         
-      if (lastRow) {
-        setVersionHistory([lastRow])
-        setInitialEditorText(lastRow.text)
+    getLastVersionFromIndexedDB((lastVersion) => {         
+      if (lastVersion) {
+        setInitialEditorText(lastVersion.text)
       }
 
       setIsInitializingIndexDB(false)
@@ -137,77 +134,67 @@ function SketchpadSSR() {
   }, [])
 
   const handleChange = (value: string) => {
-    const currentVersion = { text: value, timestamp: new Date() }
+    getLastVersionFromIndexedDB((lastRow) => {
+      const currentVersion = { text: value, timestamp: new Date() }
 
-    if (versionHistory.length === 0) {
-      setVersionHistory([currentVersion])
-      addVersionToIndexedDB(currentVersion)
-      return
-    }
-
-    const diff = diffChars(versionHistory[versionHistory.length - 1].text, value)
-
-    let operationType: OperationType = 'none'
-
-    let insertions = 0
-    let deletions = 0
-
-    diff.forEach(part => {
-      if (part.added) {
-        if (part.count) {
-          insertions += part.count
-        }
-      } else if (part.removed) {
-        if (part.count) {
-          deletions += part.count
-        }
+      if (!lastRow) {
+        addVersionToIndexedDB(currentVersion)
+        return
       }
-    })
 
-    if (insertions > 0 && deletions === 0) {
-      operationType = 'insert'
-    } else if (deletions > 0 && insertions === 0) {
-      operationType = 'delete'
-    } else if (insertions > 0 && deletions > 0) {
-      operationType = 'mixture'
-    } else {
-      operationType = 'none'
-    }
+      const diff = diffChars(lastRow.text, value)
+      
+      let insertions = 0
+      let deletions = 0
+      
+      diff.forEach(part => {
+        if (part.added) {
+          if (part.count) {
+            insertions += part.count
+          }
+        } else if (part.removed) {
+          if (part.count) {
+            deletions += part.count
+          }
+        }
+      })
+      
+      let operationType: OperationType = 'none'
 
-    const buildNewVersionHistory = (): Version[] => {
-      const historyCopy = [...versionHistory]
-
+      if (insertions > 0 && deletions === 0) {
+        operationType = 'insert'
+      } else if (deletions > 0 && insertions === 0) {
+        operationType = 'delete'
+      } else if (insertions > 0 && deletions > 0) {
+        operationType = 'mixture'
+      } else {
+        operationType = 'none'
+      }
+ 
       if (operationType === 'none') {
-        return historyCopy
+        return
       }
 
       const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000)
+      const lastVersionTimestamp = new Date(lastRow.timestamp)
 
       if (
         lastOperationType === operationType &&
         operationType !== 'mixture' &&
-        new Date(historyCopy[historyCopy.length - 1].timestamp) > threeMinutesAgo
+        lastVersionTimestamp > threeMinutesAgo
       ) {
         // Replace last version when continuous same type of edit (insert or delete)
-        historyCopy[historyCopy.length - 1] = currentVersion
-
         getRowCountFromIndexedDB((rowCount) => {
           updateVersionInIndexedDB(currentVersion, rowCount)
         })
-
-        return historyCopy
       } else {
         // Add new version when switch in operation type or first operation
         addVersionToIndexedDB(currentVersion)
-        return [...historyCopy, currentVersion]
+        setCount(count + 1)
       }
-    }
-
-    const newVersionHistory = buildNewVersionHistory()
-    
-    setVersionHistory(newVersionHistory)
-    
-    setLastOperationType(operationType)
+      
+      setLastOperationType(operationType)
+    })
   }
   
   if (isInitializingIndexDB) {
@@ -215,43 +202,16 @@ function SketchpadSSR() {
   }
 
   return (
-    <div className="flex flex-col items-center">
-      <div className='w-136 max-w-screen'>
-        <CodeMirror minHeight="500px" value={initialEditorText} extensions={[EditorView.lineWrapping]} onChange={handleChange} />
+    <div className="flex flex-col items-center h-screen">
+      <div className="w-136 max-w-screen h-full flex flex-col">
+        <p>{count.toLocaleString()} versions saved for this session.</p>
+        <p>{"Take a break if you're feeling anxious!"}</p>
 
-        <div className="flex flex-col">
-          <p>Version History</p>
-          <p>{versionHistory.length} versions saved for this session</p>
-
-          {versionHistory.length > 0 ? (
-            <ul className="history-list">
-              {versionHistory.map((version, index) => (
-                <li key={index} className="history-item">
-                  <div>
-                    {version.text.length > 0 ? (
-                      <pre className="whitespace-pre-wrap break-words">{version.text}</pre>
-                    ) : (
-                      <div className="text-gray-600">Empty</div>
-                    )}
-
-                    <div className="history-text">
-                      {version.timestamp.toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                        second: "2-digit",
-                        hour12: true,
-                      })}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>No versions yet.</p>
-          )}
-        </div>
+        <CodeMirror
+          value={initialEditorText}
+          extensions={[EditorView.lineWrapping]}
+          onChange={handleChange}
+        />
       </div>
     </div>
   )
